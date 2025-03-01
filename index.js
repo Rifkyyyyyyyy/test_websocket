@@ -30,4 +30,5 @@ wss.on('connection', (ws) => {
 
 // Jalankan server di port 3000
 server.listen(PORT, () => {
-    console.log(`WebSocket server running on ws://localhos
+    console.log(`WebSocket server running on ws://localhost:${PORT}`);
+});
