@@ -40,6 +40,8 @@ const getPaymentStatusService = (ws, uid, orderId) => {
         { projection: { 'transaction_status': 1 } }
       );
 
+      console.log(`🔍 Data pembayaran: ${JSON.stringify(payment)}`); // Log tambahan
+
       if (payment && payment.transaction_status !== previousStatus) {
         previousStatus = payment.transaction_status;
         ws.send(JSON.stringify({ status: payment.transaction_status }));
@@ -47,16 +49,12 @@ const getPaymentStatusService = (ws, uid, orderId) => {
       }
 
     } catch (error) {
-      console.error(`❌ Error mengambil status pembayaran: ${error.message}`);
+      console.error(`❌ Error MongoDB: ${error.message}`);
       clearInterval(intervalId);
     }
-  }, 5000); // Interval pengecekan 5 detik
-
-  ws.on('close', () => {
-    console.log(`🔌 User ${uid} terputus dari WebSocket.`);
-    clearInterval(intervalId);  // Hentikan pengecekan saat WebSocket ditutup
-  });
+  }, 10000); // Ganti jadi 10 detik buat cek
 };
+
 
 // WebSocket untuk terima permintaan client
 wss.on('connection', (ws) => {
