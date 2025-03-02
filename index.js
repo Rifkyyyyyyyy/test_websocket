@@ -1,9 +1,13 @@
-const WebSocket = require('ws')
-const http = require('http')
-const server = http.createServer();
+const WebSocket = require('ws');
+const http = require('http');
+const express = require('express');
+
+const app = express();  // Create an Express app instance
+const server = http.createServer(app);  // Pass the app instance to createServer
 
 const PORT = 3000;
-const wss = new WebSocket.Server({ server })
+const wss = new WebSocket.Server({ server });
+
 
 wss.on('connection', ws => {
     ws.on('message', message => {
@@ -14,5 +18,5 @@ wss.on('connection', ws => {
 })
 
 server.listen(PORT, () => {
-    console.log(`WebSocket server running on ${PORT}`);
+    console.log(`WebSocket server running on http://localhost:${PORT}`);
 });
