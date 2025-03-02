@@ -8,7 +8,7 @@ const { MongoClient } = require('mongodb');
 const app = express();
 const server = http.createServer(app);
 
-const PORT = process.env.PORT;
+const PORT = process.env.PORT || 3500;
 const wss = new WebSocket.Server({ server });
 
 const cloudURI = `mongodb+srv://rifkywebsocket:${encodeURIComponent(process.env.DB_PASSWORD)}@cluster0.1o4oz.mongodb.net/api?retryWrites=true&w=majority&appName=Cluster0`;
@@ -22,9 +22,15 @@ const connectToMongoDB = async () => {
     await client.connect();
     console.log('✅ Terhubung ke MongoDB');
 
-    const db = client.db('muslimifyDb');
-    console.log(db.listCollections().toArray());
+    const db = client.db('api');
+
+    const collections = await db.listCollections().toArray();
+
+
+
     paymentsCollection = db.collection('payments');
+
+
 
   } catch (error) {
     console.error('❌ Gagal terhubung ke MongoDB:', error);
