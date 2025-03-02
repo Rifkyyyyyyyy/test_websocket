@@ -1,5 +1,4 @@
 require('dotenv').config();
-
 const WebSocket = require('ws');
 const http = require('http');
 const express = require('express');
@@ -8,66 +7,77 @@ const { MongoClient } = require('mongodb');
 const app = express();
 const server = http.createServer(app);
 
-const PORT = process.env.PORT ;
-const wss = new WebSocket.Server({ server });
+const PORT = process.env.PORT || 3000;
+const DB_PASSWORD = process.env.DB_PASSWORD;
 
-const cloudURI = `mongodb+srv://rifkywebsocket:${encodeURIComponent(process.env.DB_PASSWORD)}@cluster0.1o4oz.mongodb.net/api?retryWrites=true&w=majority&appName=Cluster0`;
+if (!DB_PASSWORD) {
+  console.error('❌ DB_PASSWORD tidak ditemukan di .env');
+  process.exit(1);
+}
 
+const cloudURI = `mongodb+srv://rifkywebsocket:${encodeURIComponent(DB_PASSWORD)}@cluster0.1o4oz.mongodb.net/api?retryWrites=true&w=majority&appName=Cluster0`;
 const client = new MongoClient(cloudURI);
+
 let paymentsCollection;
 
-// Koneksi ke MongoDB
+const wss = new WebSocket.Server({ server });
+
+// 🔗 Koneksi ke MongoDB
 const connectToMongoDB = async () => {
   try {
     await client.connect();
     console.log('✅ Terhubung ke MongoDB');
-
     const db = client.db('api');
-
     paymentsCollection = db.collection('payments');
-
-
   } catch (error) {
     console.error('❌ Gagal terhubung ke MongoDB:', error);
+    process.exit(1);
   }
 };
 connectToMongoDB();
 
-// Cek status pembayaran setiap 5 detik
-// Cek status pembayaran setiap 10 detik
+// 🛠 Fungsi untuk memantau status pembayaran menggunakan `watch` (real-time)
 const getPaymentStatusService = (ws, uid, orderId) => {
-  let previousStatus = null;
-
-  const intervalId = setInterval(async () => {
-    try {
-      const payment = await paymentsCollection.findOne(
-        { 'user.uid': uid, 'order_id': orderId },
-        { projection: { 'transaction_status': 1 } }
-      );
-
-      console.log(`🔍 Data pembayaran: ${JSON.stringify(payment)}`); 
-
-      if (payment && payment.transaction_status !== previousStatus) {
-        previousStatus = payment.transaction_status;
-        ws.send(JSON.stringify({ status: payment.transaction_status }));
-        console.log(`✅ Status transaksi diperbarui: ${payment.transaction_status}`);
-
-        // 🛑 Hentikan pengecekan kalau statusnya "paid" atau "cancelled"
-        if (payment.transaction_status === 'paid' || payment.transaction_status === 'cancelled') {
-          console.log(`🛑 Pembayaran ${payment.transaction_status}, hentikan pengecekan.`);
-          clearInterval(intervalId);  // Hentikan interval
+  try {
+    const changeStream = paymentsCollection.watch([
+      {
+        $match: {
+          'fullDocument.user.uid': uid,
+          'fullDocument.order_id': orderId
         }
       }
+    ]);
 
-    } catch (error) {
-      console.error(`❌ Error MongoDB: ${error.message}`);
-      clearInterval(intervalId);
-    }
-  }, 10000); // Ganti jadi 10 detik buat cek
+    console.log(`👀 Memantau perubahan status untuk OrderID: ${orderId}`);
+
+    changeStream.on('change', (change) => {
+      const updatedDoc = change.fullDocument;
+      if (updatedDoc) {
+        const { transaction_status } = updatedDoc;
+        ws.send(JSON.stringify({ status: transaction_status }));
+        console.log(`✅ Status transaksi diperbarui: ${transaction_status}`);
+
+        // 🛑 Tutup stream jika status "paid" atau "cancelled"
+        if (transaction_status === 'paid' || transaction_status === 'cancelled') {
+          console.log(`🛑 Pembayaran ${transaction_status}, hentikan pemantauan.`);
+          changeStream.close();  // Hentikan stream
+          ws.close();  // Tutup WebSocket
+        }
+      }
+    });
+
+    ws.on('close', () => {
+      console.log('🔌 Client terputus dari WebSocket.');
+      changeStream.close();  // Bersihkan stream saat WebSocket ditutup
+    });
+
+  } catch (error) {
+    console.error(`❌ Error MongoDB: ${error.message}`);
+    ws.send(JSON.stringify({ error: 'Terjadi kesalahan pada server.' }));
+  }
 };
 
-
-// WebSocket untuk terima permintaan client
+// 🌐 WebSocket untuk terima permintaan client
 wss.on('connection', (ws) => {
   console.log('🔗 Client terhubung ke WebSocket.');
 
@@ -90,7 +100,7 @@ wss.on('connection', (ws) => {
   });
 });
 
-// Jalankan server
+// 🚀 Jalankan server
 server.listen(PORT, () => {
   console.log(`🚀 WebSocket server berjalan di http://localhost:${PORT}`);
 });
