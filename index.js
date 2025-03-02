@@ -18,13 +18,13 @@ let paymentsCollection;
 const connectToMongoDB = async () => {
   try {
     await client.connect();
-    console.log('Terhubung ke MongoDB');
+    console.log('✅ Terhubung ke MongoDB');
 
     const db = client.db('muslimifyDb');
     paymentsCollection = db.collection('payments');
 
   } catch (error) {
-    console.error('Gagal terhubung ke MongoDB:', error);
+    console.error('❌ Gagal terhubung ke MongoDB:', error);
   }
 };
 connectToMongoDB();
@@ -32,7 +32,7 @@ connectToMongoDB();
 // Cek perubahan status pembayaran
 const getPaymentStatusService = async (ws, uid, orderId) => {
   try {
-    console.log(`Memantau pembayaran UID: ${uid}, OrderID: ${orderId}`);
+    console.log(`📡 Memantau pembayaran UID: ${uid}, OrderID: ${orderId}`);
 
     const changeStream = paymentsCollection.watch([
       {
@@ -43,35 +43,39 @@ const getPaymentStatusService = async (ws, uid, orderId) => {
       }
     ]);
 
+    console.log("🔄 Change stream aktif...");
+
     changeStream.on('change', (change) => {
       try {
+        console.log("📥 Ada perubahan di MongoDB:", change);  // Log tambahan
         if (change.operationType === 'update') {
           const updatedFields = change.updateDescription.updatedFields;
+          console.log("🔄 Field yang diupdate:", updatedFields);  // Log tambahan
           if (updatedFields.transaction_status) {
             const newStatus = updatedFields.transaction_status;
             ws.send(JSON.stringify({ status: newStatus }));
-            console.log(`Status transaksi diperbarui: ${newStatus}`);
+            console.log(`✅ Status transaksi diperbarui: ${newStatus}`);
           }
         }
       } catch (err) {
-        console.error(`Error processing change event: ${err.message}`);
+        console.error(`❌ Error processing change event: ${err.message}`);
         changeStream.close();
       }
     });
 
     ws.on('close', () => {
-      console.log(`User ${uid} terputus dari WebSocket.`);
+      console.log(`🔌 User ${uid} terputus dari WebSocket.`);
       changeStream.close();  // Tutup stream kalau user terputus
     });
 
   } catch (error) {
-    console.error(`Error monitoring payment status: ${error.message}`);
+    console.error(`❌ Error monitoring payment status: ${error.message}`);
   }
 };
 
 // WebSocket untuk terima permintaan client
 wss.on('connection', (ws) => {
-  console.log('Client terhubung ke WebSocket.');
+  console.log('🔗 Client terhubung ke WebSocket.');
 
   ws.on('message', (message) => {
     try {
@@ -82,17 +86,17 @@ wss.on('connection', (ws) => {
         ws.send(JSON.stringify({ error: 'UID atau OrderID tidak valid.' }));
       }
     } catch (err) {
-      console.error(`Error parsing message: ${err.message}`);
+      console.error(`❌ Error parsing message: ${err.message}`);
       ws.send(JSON.stringify({ error: 'Format pesan tidak valid.' }));
     }
   });
 
   ws.on('close', () => {
-    console.log('Client terputus dari WebSocket.');
+    console.log('🔌 Client terputus dari WebSocket.');
   });
 });
 
 // Jalankan server
 server.listen(PORT, () => {
-  console.log(`WebSocket server berjalan di http://localhost:${PORT}`);
+  console.log(`🚀 WebSocket server berjalan di http://localhost:${PORT}`);
 });
