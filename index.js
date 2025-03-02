@@ -6,7 +6,7 @@ const { MongoClient } = require('mongodb');
 const app = express();
 const server = http.createServer(app);
 
-const PORT = process.env.PORT;;
+const PORT = process.env.PORT;
 const wss = new WebSocket.Server({ server });
 
 const cloudURI = `mongodb+srv://rfkyzr1:${encodeURIComponent(process.env.DB_PASSWORD)}@cluster0.1o4oz.mongodb.net/api?retryWrites=true&w=majority&appName=Cluster0`;
@@ -14,6 +14,7 @@ const cloudURI = `mongodb+srv://rfkyzr1:${encodeURIComponent(process.env.DB_PASS
 const client = new MongoClient(cloudURI);
 let paymentsCollection;
 
+// Koneksi ke MongoDB
 const connectToMongoDB = async () => {
   try {
     await client.connect();
@@ -28,6 +29,7 @@ const connectToMongoDB = async () => {
 };
 connectToMongoDB();
 
+// Cek perubahan status pembayaran
 const getPaymentStatusService = async (ws, uid, orderId) => {
   try {
     console.log(`Memantau pembayaran UID: ${uid}, OrderID: ${orderId}`);
@@ -58,8 +60,8 @@ const getPaymentStatusService = async (ws, uid, orderId) => {
     });
 
     ws.on('close', () => {
-      console.log(`User ${uid} disconnected dari WebSocket.`);
-      changeStream.close();
+      console.log(`User ${uid} terputus dari WebSocket.`);
+      changeStream.close();  // Tutup stream kalau user terputus
     });
 
   } catch (error) {
@@ -67,6 +69,7 @@ const getPaymentStatusService = async (ws, uid, orderId) => {
   }
 };
 
+// WebSocket untuk terima permintaan client
 wss.on('connection', (ws) => {
   console.log('Client terhubung ke WebSocket.');
 
@@ -87,14 +90,9 @@ wss.on('connection', (ws) => {
   ws.on('close', () => {
     console.log('Client terputus dari WebSocket.');
   });
-
-  setInterval(() => {
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send('Ping dari Server!');
-    }
-  }, 5000);
 });
 
+// Jalankan server
 server.listen(PORT, () => {
-  console.log(`WebSocket server running on http://localhost:${PORT}`);
+  console.log(`WebSocket server berjalan di http://localhost:${PORT}`);
 });
