@@ -29,59 +29,33 @@ const connectToMongoDB = async () => {
 };
 connectToMongoDB();
 
-// Cek perubahan status pembayaran
-const getPaymentStatusService = async (ws, uid, orderId) => {
-  try {
-    console.log(`📡 Memantau pembayaran UID: ${uid}, OrderID: ${orderId}`);
+// Cek status pembayaran setiap 5 detik
+const getPaymentStatusService = (ws, uid, orderId) => {
+  let previousStatus = null;
 
-    const changeStream = paymentsCollection.watch([
-      {
-        $match: {
-          $and: [
-            { 'fullDocument.user.uid': uid },
-            { 'fullDocument.order_id': orderId },
-            { 'updateDescription.updatedFields.transaction_status': { $exists: true } }
-          ]
-        }
+  const intervalId = setInterval(async () => {
+    try {
+      const payment = await paymentsCollection.findOne(
+        { 'user.uid': uid, 'order_id': orderId },
+        { projection: { 'transaction_status': 1 } }
+      );
+
+      if (payment && payment.transaction_status !== previousStatus) {
+        previousStatus = payment.transaction_status;
+        ws.send(JSON.stringify({ status: payment.transaction_status }));
+        console.log(`✅ Status transaksi diperbarui: ${payment.transaction_status}`);
       }
-    ], { fullDocument: 'updateLookup' });
-    
 
-    console.log("🔄 Change stream aktif...");
+    } catch (error) {
+      console.error(`❌ Error mengambil status pembayaran: ${error.message}`);
+      clearInterval(intervalId);
+    }
+  }, 5000); // Interval pengecekan 5 detik
 
-    changeStream.on('change', (change) => {
-      try {
-        console.log("📥 Ada perubahan di MongoDB:", JSON.stringify(change, null, 2));  // Log tambahan
-        
-        if (change.operationType === 'update') {
-          const updatedFields = change.updateDescription.updatedFields;
-          console.log("🔄 Field yang diupdate:", updatedFields);  // Log tambahan
-          
-          if (updatedFields.transaction_status) {  // Akses langsung, karena bukan nested
-            const newStatus = updatedFields.transaction_status;
-            ws.send(JSON.stringify({ status: newStatus }));
-            console.log(`✅ Status transaksi diperbarui: ${newStatus}`);
-          } else {
-            console.log("❌ Field 'transaction_status' nggak ada di update.");
-          }
-        } else {
-          console.log("🔄 Operasi bukan update, diabaikan.");
-        }
-      } catch (err) {
-        console.error(`❌ Error processing change event: ${err.message}`);
-        changeStream.close();
-      }
-    });
-    
-
-    ws.on('close', () => {
-      console.log(`🔌 User ${uid} terputus dari WebSocket.`);
-      changeStream.close();  // Tutup stream kalau user terputus
-    });
-
-  } catch (error) {
-    console.error(`❌ Error monitoring payment status: ${error.message}`);
-  }
+  ws.on('close', () => {
+    console.log(`🔌 User ${uid} terputus dari WebSocket.`);
+    clearInterval(intervalId);  // Hentikan pengecekan saat WebSocket ditutup
+  });
 };
 
 // WebSocket untuk terima permintaan client
