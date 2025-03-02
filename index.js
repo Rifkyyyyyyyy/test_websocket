@@ -8,7 +8,7 @@ const { MongoClient } = require('mongodb');
 const app = express();
 const server = http.createServer(app);
 
-const PORT = process.env.PORT || 3500;
+const PORT = process.env.PORT ;
 const wss = new WebSocket.Server({ server });
 
 const cloudURI = `mongodb+srv://rifkywebsocket:${encodeURIComponent(process.env.DB_PASSWORD)}@cluster0.1o4oz.mongodb.net/api?retryWrites=true&w=majority&appName=Cluster0`;
@@ -24,12 +24,7 @@ const connectToMongoDB = async () => {
 
     const db = client.db('api');
 
-    const collections = await db.listCollections().toArray();
-
-
-
     paymentsCollection = db.collection('payments');
-
 
 
   } catch (error) {
@@ -39,6 +34,7 @@ const connectToMongoDB = async () => {
 connectToMongoDB();
 
 // Cek status pembayaran setiap 5 detik
+// Cek status pembayaran setiap 10 detik
 const getPaymentStatusService = (ws, uid, orderId) => {
   let previousStatus = null;
 
@@ -49,12 +45,18 @@ const getPaymentStatusService = (ws, uid, orderId) => {
         { projection: { 'transaction_status': 1 } }
       );
 
-      console.log(`🔍 Data pembayaran: ${JSON.stringify(payment)}`); // Log tambahan
+      console.log(`🔍 Data pembayaran: ${JSON.stringify(payment)}`); 
 
       if (payment && payment.transaction_status !== previousStatus) {
         previousStatus = payment.transaction_status;
         ws.send(JSON.stringify({ status: payment.transaction_status }));
         console.log(`✅ Status transaksi diperbarui: ${payment.transaction_status}`);
+
+        // 🛑 Hentikan pengecekan kalau statusnya "paid" atau "cancelled"
+        if (payment.transaction_status === 'paid' || payment.transaction_status === 'cancelled') {
+          console.log(`🛑 Pembayaran ${payment.transaction_status}, hentikan pengecekan.`);
+          clearInterval(intervalId);  // Hentikan interval
+        }
       }
 
     } catch (error) {
