@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const WebSocket = require('ws');
 const http = require('http');
 const express = require('express');
@@ -9,7 +11,7 @@ const server = http.createServer(app);
 const PORT = process.env.PORT;
 const wss = new WebSocket.Server({ server });
 
-const cloudURI = `mongodb+srv://rfkyzr1:${encodeURIComponent(process.env.DB_PASSWORD)}@cluster0.1o4oz.mongodb.net/api?retryWrites=true&w=majority&appName=Cluster0`;
+const cloudURI = `mongodb+srv://rifkywebsocket:${encodeURIComponent(process.env.DB_PASSWORD)}@cluster0.1o4oz.mongodb.net/api?retryWrites=true&w=majority&appName=Cluster0`;
 
 const client = new MongoClient(cloudURI);
 let paymentsCollection;
@@ -21,6 +23,7 @@ const connectToMongoDB = async () => {
     console.log('✅ Terhubung ke MongoDB');
 
     const db = client.db('muslimifyDb');
+    console.log(db.listCollections().toArray());
     paymentsCollection = db.collection('payments');
 
   } catch (error) {
