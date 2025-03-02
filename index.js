@@ -37,31 +37,42 @@ const getPaymentStatusService = async (ws, uid, orderId) => {
     const changeStream = paymentsCollection.watch([
       {
         $match: {
-          'fullDocument.user.uid': uid,
-          'fullDocument.order_id': orderId
+          $and: [
+            { 'fullDocument.user.uid': uid },
+            { 'fullDocument.order_id': orderId },
+            { 'updateDescription.updatedFields.transaction_status': { $exists: true } }
+          ]
         }
       }
-    ]);
+    ], { fullDocument: 'updateLookup' });
+    
 
     console.log("🔄 Change stream aktif...");
 
     changeStream.on('change', (change) => {
       try {
-        console.log("📥 Ada perubahan di MongoDB:", change);  // Log tambahan
+        console.log("📥 Ada perubahan di MongoDB:", JSON.stringify(change, null, 2));  // Log tambahan
+        
         if (change.operationType === 'update') {
           const updatedFields = change.updateDescription.updatedFields;
           console.log("🔄 Field yang diupdate:", updatedFields);  // Log tambahan
-          if (updatedFields.transaction_status) {
+          
+          if (updatedFields.transaction_status) {  // Akses langsung, karena bukan nested
             const newStatus = updatedFields.transaction_status;
             ws.send(JSON.stringify({ status: newStatus }));
             console.log(`✅ Status transaksi diperbarui: ${newStatus}`);
+          } else {
+            console.log("❌ Field 'transaction_status' nggak ada di update.");
           }
+        } else {
+          console.log("🔄 Operasi bukan update, diabaikan.");
         }
       } catch (err) {
         console.error(`❌ Error processing change event: ${err.message}`);
         changeStream.close();
       }
     });
+    
 
     ws.on('close', () => {
       console.log(`🔌 User ${uid} terputus dari WebSocket.`);
